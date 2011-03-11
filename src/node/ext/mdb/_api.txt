@@ -1,0 +1,701 @@
+node.ext.ugm
+============
+
+Filesystem representaiton of the mdb data model.
+
+The persistence of MDB is done with a file system subtree structure containing
+media data corresponding ``.metadata`` and ``.binary`` files.
+
+The read/write API for this is provided by a dict-like API based on
+``node``.
+
+The ``Repository`` object represents the whole database. This database contains
+``Media`` objects which holds a bunch of ``Revision`` objects. Each revision
+consists out of one ``Metadata`` and one ``Binary`` object.
+
+The object keys are mapped to the filesystem as follows:
+
+The name used as ``Media`` name gets resolved to a subtree of directories
+where each character of the name represents a subfolder, i.e. 'media1' gets
+resolved to 'm/e/d/i/a/1'.
+
+The ``Revision`` name is appended as base filename without a postfix to the
+media path. Thus the revision '0' related files in 'media1' are located
+at 'm/e/d/i/a/1/0.*'.
+
+The ``Revision`` corresponding ``Metadata`` and ``Binary`` objects append the
+file postfixes '.metadata' and '.binary' to the revision path and manage its
+data.
+
+The data files of revision '0' in 'media1' are stored at
+'m/e/d/i/a/1/0.metadata' and 'm/e/d/i/a/1/0.binary'.
+
+Create a test environment::
+
+    >>> import os
+    >>> import tempfile
+    >>> tempdir = tempfile.mkdtemp()
+
+Import model referring interfaces and objects::
+  
+    >>> from node.ext.mdb.interfaces import \
+    ...     IRepository, IMedia, IRevision, IMetadata, IBinary
+    >>> from node.ext.mdb import Repository, Media, Revision, Metadata, Binary
+  
+Create the Database (or point to an existing one, tested later)::
+
+    >>> db = Repository(tempdir)
+    >>> db
+    <Repository object ...>
+    
+    >>> db.__name__
+    '...'
+    
+    >>> IRepository.providedBy(db)
+    True
+  
+This database is empty::
+
+    >>> db.keys()
+    []
+
+``Repository`` instances only accept ``IMedia`` implementations as childs::
+
+    >>> db['foo'] = object()
+    Traceback (most recent call last):
+      ...
+    ValueError: Invalid child adding approach.
+
+Create a media object inside the database::
+
+    >>> media = Media()
+    >>> IMedia.providedBy(media)
+    True
+  
+    >>> db['somefile'] = media
+    >>> db.keys()
+    ['somefile']
+
+The debug helper function ``tree`` prints the substructure of a given
+filesystem path::
+
+    >>> from node.ext.mdb import tree
+
+The media object is not written to the filesystem yet::
+
+    >>> tree(tempdir)
+
+The changes made to the tree are written at ``__call__`` time::
+
+    >>> db()
+
+Check already written database and media attributes::
+
+    >>> tree(db.__name__)
+    s
+      o
+        m
+          e
+            f
+              i
+                l
+                  e
+    
+    >>> rdb = Repository(tempdir)
+    >>> rdb.keys()
+    ['somefile']
+
+Check now the filesystem structure of db::
+
+    >>> tree(db.__name__)
+    s
+      o
+        m
+          e
+            f
+              i
+                l
+                  e
+
+``Media`` instances only accept ``IRevision`` implementations as childs::
+
+    >>> media['foo'] = object()
+    Traceback (most recent call last):
+      ...
+    ValueError: Invalid child adding approach.
+
+Create a Revision of the media object::
+
+    >>> rev = Revision('0')
+    >>> IRevision.providedBy(rev)
+    True
+  
+    >>> media['0'] = rev
+
+``Revision`` instances only accept ``IMetadata`` and ``IBinary`` implementations
+as childs::
+
+    >>> rev['foo'] = object()
+    Traceback (most recent call last):
+      ...
+    ValueError: Invalid child adding approach.
+
+Create a ``Metadata`` object for the revision::
+
+    >>> md = Metadata()
+    >>> IMetadata.providedBy(md)
+    True
+
+The valid attribute names are available at ``Metadata.attributes`` (without
+underscores).::
+
+    >>> md.attributes
+    ['_uid_', '_author_', '_created_', '_effective_', '_expires_', 
+    '_revision_', '_metatype_', '_creator_', '_keywords_', '_url_', 
+    '_relations_', '_title_', '_description_', '_alttag_', '_body_', 
+    '_flag_', '_relations_', '_keywords_', '_visibility_', '_modified_', 
+    '_filename_']
+
+The attributes are set via attribute assignment::
+
+    >>> md.uid = str(md.uuid)
+    >>> md.title = 'Somefiletitle'
+    >>> md.description = 'The description of somefile'
+    
+    >>> md.title
+    'Somefiletitle'
+    
+    >>> md.description
+    'The description of somefile'
+
+Metadata attributes can be multi valued.::
+
+    >>> md.relations = ['1', '2', '3']
+    >>> md.relations
+    ['1', '2', '3']
+
+Metadata attributes could be datetime objects.
+
+Test underlying helper functions.::
+
+    >>> from datetime import datetime
+    >>> dt = datetime(2010, 1, 1, 10, 15)
+    >>> dt
+    datetime.datetime(2010, 1, 1, 10, 15)
+    
+    >>> md._dt_to_iso(dt)
+    '2010-01-01T10:15:00'
+    
+    >>> md._dt_from_iso('2010-01-01T10:15:00')
+    datetime.datetime(2010, 1, 1, 10, 15)
+
+Metadata tries to convert to iso format when writing and tries to parse 
+datetime from string when reading.::
+
+    >>> md._r_value('abc')
+    u'abc'
+    
+    >>> md._r_value('2010-01-01T10:15:00')
+    datetime.datetime(2010, 1, 1, 10, 15)
+    
+    >>> md._w_value('abc')
+    u'abc'
+    
+    >>> md._w_value(datetime(2010, 1, 1, 10, 15))
+    '2010-01-01T10:15:00'
+
+Set datetime attributes on metadata.::
+
+    >>> md.effective = datetime(2010, 1, 1, 10, 15)
+
+All metadata attributes are located in a dict at ``Metadata.data``::
+
+    >>> md.data
+    {'_title_': 'Somefiletitle', 
+    '_relations_': ['1', '2', '3'], 
+    '_description_': 'The description of somefile', 
+    '_effective_': datetime.datetime(2010, 1, 1, 10, 15), 
+    '_uid_': '...'}
+
+An XML representation is available as well. It is also used for persistence::
+
+    >>> md.asxml.split('\n')
+    ['<metadata>', 
+    '  <title>Somefiletitle</title>', 
+    '  <relations>', 
+    '    <item>1</item>', 
+    '    <item>2</item>', 
+    '    <item>3</item>', 
+    '  </relations>', 
+    '  <description>The description of somefile</description>', 
+    '  <effective>2010-01-01T10:15:00</effective>', 
+    '  <uid>...</uid>', 
+    '</metadata>', 
+    '']
+
+Add the ``Metadata`` object to the revision::
+
+    >>> rev['metadata'] = md
+    
+    >>> rev.path
+    ['...', 'somefile', '0']
+    
+    >>> md.path
+    ['...', 'somefile', '0', 'metadata']
+    
+    >>> db['somefile']['0']['metadata']
+    <Metadata object 'metadata' at ...>
+    
+    >>> db()
+    
+    >>> tree(db.__name__)
+    s
+      o
+        m
+          e
+            f
+              i
+                l
+                  e
+                    0.metadata
+
+Check the contents of the metadata file::
+
+    >>> mdfile = open(md.metadatapath, 'r')
+    >>> mdfile.readlines()
+    ['<metadata>\n', 
+    '  <title>Somefiletitle</title>\n', 
+    '  <relations>\n', 
+    '    <item>1</item>\n', 
+    '    <item>2</item>\n', 
+    '    <item>3</item>\n', 
+    '  </relations>\n', 
+    '  <description>The description of somefile</description>\n', 
+    '  <effective>2010-01-01T10:15:00</effective>\n', 
+    '  <uid>...</uid>\n', 
+    '</metadata>\n']
+  
+    >>> mdfile.close()
+  
+Create a binary for the revision::
+
+    >>> bin = Binary()
+    >>> IBinary.providedBy(bin)
+    True
+
+Set the payload written to the file::
+  
+    >>> bin.payload = 'text'
+
+Add the binary object to the revision::
+
+    >>> rev['binary'] = bin
+
+The real filename of the binary is aimed to be stored in the metadata::
+
+    >>> db()
+    >>> tree(db.__name__)
+    s
+      o
+        m
+          e
+            f
+              i
+                l
+                  e
+                    0.metadata
+                    0.binary
+
+Until now, we have always called the database root for dumping data. You
+can also call subobjects directly to write a specific Media, Revision, Metadata
+or Binary.
+
+The limitation on this is that the specific object must be read from
+the database object. Database child nodes are not writeable unless they are
+located anywhere in the database::
+
+    >>> media_no_write = Media()
+    >>> media_no_write()
+    Traceback (most recent call last):
+      ...
+    OperationForbidden: Media not contained in a Database.
+  
+    >>> revision_no_write = Revision()
+    >>> revision_no_write()
+    Traceback (most recent call last):
+      ...
+    OperationForbidden: Revision not contained in a Media.
+  
+    >>> metadata_no_write = Metadata(data={'title': 'title'})
+    >>> metadata_no_write()
+    Traceback (most recent call last):
+      ...
+    OperationForbidden: Metadata not contained in a Revision.
+  
+    >>> binary_no_write = Binary(payload='foo')
+    >>> binary_no_write()
+    Traceback (most recent call last):
+      ...
+    OperationForbidden: Binary not contained in a Revision.
+
+Add some more objects to the database::
+
+    >>> rev1 = Revision()
+    >>> rev1['metadata'] = Metadata()
+    >>> rev1['binary'] = Binary()
+    >>> rev1['metadata'].title = 'Title'
+    >>> rev1['binary'].payload = 'another text'
+    >>> media['1'] = rev1
+  
+    >>> media1 = Media()
+    >>> db['foo'] = media1
+  
+    >>> rev = Revision()
+    >>> media1['0'] = rev
+  
+    >>> md = {'Title': 'title', 'Description': 'Description'}
+    >>> rev['metadata'] = Metadata(data=md)
+    >>> rev['binary'] = Binary(payload='foo')
+  
+    >>> media2 = Media()
+    >>> db['fooo'] = media2
+  
+    >>> rev = Revision()
+    >>> media2['0'] = rev
+  
+    >>> rev['metadata'] = Metadata(data=md)
+    >>> rev['binary'] = Binary(payload='fooo')
+
+The filsystem tree now looks like this::
+
+    >>> db()
+    >>> tree(db.__name__)
+    s
+      o
+        m
+          e
+            f
+              i
+                l
+                  e
+                    0.metadata
+                    1.metadata
+                    1.binary
+                    0.binary
+    f
+      o
+        o
+          0.metadata
+          o
+            0.metadata
+            0.binary
+          0.binary
+
+Check reading of an existing database. We use the alredy created one::
+
+    >>> rdb = Repository(tempdir)
+    >>> rdb.keys()
+    ['somefile', 'foo', 'fooo']
+  
+    >>> media = rdb['foo']
+    >>> media.keys()
+    ['0']
+  
+    >>> media = rdb['somefile']
+    >>> media.keys()
+    ['1', '0']
+  
+    >>> revision = media['0']
+    >>> revision.keys()
+    ['metadata', 'binary']
+  
+    >>> metadata = revision['metadata']
+    >>> metadata.data
+    {'_title_': u'Somefiletitle', 
+    '_relations_': [u'1', u'2', u'3'], 
+    '_description_': u'The description of somefile', 
+    '_effective_': datetime.datetime(2010, 1, 1, 10, 15), 
+    '_uid_': u'...'}
+  
+    >>> binary = revision['binary']
+    >>> binary.payload
+    'text'
+
+Add and update some metadata attributes::
+
+    >>> metadata.body = 'body'
+    >>> metadata.title = 'New Title'
+    >>> metadata.data
+    {'_title_': 'New Title', 
+    '_effective_': datetime.datetime(2010, 1, 1, 10, 15), 
+    '_description_': u'The description of somefile', 
+    '_body_': 'body', 
+    '_relations_': [u'1', u'2', u'3'], 
+    '_uid_': u'...'}
+
+Note again, the data is not persisted unless you call the metadata object (or
+one of its parents)::
+
+    >>> file = open(metadata.metadatapath)
+    >>> filecontents = file.readlines()
+    >>> file.close()
+    >>> filecontents
+    ['<metadata>\n', 
+    '  <title>Somefiletitle</title>\n', 
+    '  <relations>\n', 
+    '    <item>1</item>\n', 
+    '    <item>2</item>\n', 
+    '    <item>3</item>\n', 
+    '  </relations>\n', 
+    '  <description>The description of somefile</description>\n', 
+    '  <effective>2010-01-01T10:15:00</effective>\n', 
+    '  <uid>...</uid>\n', 
+    '</metadata>\n']
+
+Deleting of metadata attributes::
+
+    >>> del metadata['uid']
+    >>> metadata.body = 'body'
+    >>> metadata()
+    >>> file = open(metadata.metadatapath)
+    >>> filecontents = file.readlines()
+    >>> file.close()
+    >>> filecontents
+    ['<metadata>\n', 
+    '  <title>New Title</title>\n', 
+    '  <effective>2010-01-01T10:15:00</effective>\n', 
+    '  <description>The description of somefile</description>\n', 
+    '  <body>body</body>\n', 
+    '  <relations>\n', 
+    '    <item>1</item>\n', 
+    '    <item>2</item>\n', 
+    '    <item>3</item>\n', 
+    '  </relations>\n', 
+    '</metadata>\n']
+
+Update the payload of a binary::
+
+    >>> binary.payload = 'updatedtext'
+    >>> file = open(binary.binarypath)
+    >>> filecontents = file.read()
+    >>> file.close()
+    >>> filecontents
+    'text'
+  
+    >>> binary()
+    >>> file = open(binary.binarypath)
+    >>> filecontents = file.read()
+    >>> file.close()
+    >>> filecontents
+    'updatedtext'
+
+Binary objects have nothing to delete::
+  
+    >>> del binary['senceless']
+    Traceback (most recent call last):
+      ...
+    OperationForbidden: Binary does not support this operation
+
+Delete a binary::
+
+    >>> del rdb['somefile']['0']['binary']
+    >>> rdb['somefile']['0'].keys()
+    ['metadata']
+
+The changes are not dumped to the filesystem yet::
+
+    >>> tree(rdb.__name__)
+    s
+      ...
+                  e
+                    0.metadata
+                    1.metadata
+                    1.binary
+                    0.binary
+    ...
+
+After calling the database the binary file is gone::
+
+    >>> rdb()
+    >>> tree(rdb.__name__)
+    s
+      ...
+                  e
+                    0.metadata
+                    1.metadata
+                    1.binary
+    ...
+
+Delete a revision::
+
+    >>> del rdb['somefile']['1']
+    >>> rdb['somefile'].keys()
+    ['0']
+
+The changes are not dumped to the filesystem yet::
+  
+    >>> tree(rdb.__name__)
+    s
+      ...
+                  e
+                    0.metadata
+                    1.metadata
+                    1.binary
+    ...
+
+After calling the database the revision related files are gone::
+
+    >>> rdb()
+    >>> tree(rdb.__name__)
+    s
+      ...
+                  e
+                    0.metadata
+    ...
+  
+    >>> rdb['somefile'].keys()
+    ['0']
+
+Delete a Media object::
+
+    >>> del rdb['somefile']
+
+The changes are not dumped to the filesystem yet::
+
+    >>> tree(rdb.__name__)
+    s
+      o
+        m
+          e
+            f
+              i
+                l
+                  e
+                    0.metadata
+    ...
+
+After calling the database the media related files and directories are gone.
+Further we do more filesystem sanity checks when deleting media - I.e. the media
+keys 'foo' and 'fooo' share a part of its destination, see below::
+
+    >>> rdb()
+    >>> tree(rdb.__name__)
+    f
+      o
+        o
+          0.metadata
+          o
+            0.metadata
+            0.binary
+          0.binary
+
+    >>> del rdb['fooo']
+    >>> rdb()
+    >>> tree(rdb.__name__)
+    f
+      o
+        o
+          0.metadata
+          0.binary
+
+    >>> rdb['fooo'] = Media()
+    >>> rdb['fooo']['0'] = Revision()
+    >>> rdb['fooo']['0']['metadata'] = Metadata()
+    >>> rdb['fooo']['0']['binary'] = Binary()
+    >>> rdb()
+    >>> tree(rdb.__name__)
+    f
+      o
+        o
+          0.metadata
+          o
+            0.metadata
+            0.binary
+          0.binary
+  
+    >>> del rdb['foo']
+    >>> rdb()
+    >>> tree(rdb.__name__)
+    f
+      o
+        o
+          o
+            0.metadata
+            0.binary
+
+Test MediaKeys object. Provides media key generation::
+
+    >>> from node.ext.mdb import MediaKeys
+    >>> keys = MediaKeys(tempdir)
+    
+    >>> os.listdir(tempdir)
+    ['database.keys', ...]
+    
+    >>> with open(keys.path) as file:
+    ...     filecontents = file.readlines()
+    >>> filecontents
+    []
+    
+Reduce allowed chars for generating keys when testing::
+
+    >>> chars_origin = keys.chars
+    >>> keys.chars = 'abc'
+
+Test internal ``_next_key`` function::
+
+    >>> gen_keys = list()
+    >>> key = 'a'
+    >>> for i in range(40):
+    ...     gen_keys.append(key)
+    ...     key = keys._next_key(key)
+    >>> gen_keys
+    ['a', 'b', 'c', 
+    'aa', 'ab', 'ac', 
+    'ba', 'bb', 'bc', 
+    'ca', 'cb', 'cc', 
+    'aaa', 'aab', 'aac', 
+    'aba', 'abb', 'abc', 
+    'aca', 'acb', 'acc', 
+    'baa', 'bab', 'bac', 
+    'bba', 'bbb', 'bbc', 
+    'bca', 'bcb', 'bcc', 
+    'caa', 'cab', 'cac', 
+    'cba', 'cbb', 'cbc', 
+    'cca', 'ccb', 'ccc', 
+    'aaaa']
+
+The official API::
+
+    >>> for i in range(40):
+    ...     keys.dump(keys.next())
+
+Check result in file::
+
+    >>> with open(keys.path, 'r') as file:
+    ...     filecontents = [line.strip('\n') for line in file.readlines()]
+    >>> filecontents
+    ['a', 'b', 'c', 
+    'aa', 'ab', 'ac', 
+    'ba', 'bb', 'bc', 
+    'ca', 'cb', 'cc', 
+    'aaa', 'aab', 'aac', 
+    'aba', 'abb', 'abc', 
+    'aca', 'acb', 'acc', 
+    'baa', 'bab', 'bac', 
+    'bba', 'bbb', 'bbc', 
+    'bca', 'bcb', 'bcc', 
+    'caa', 'cab', 'cac', 
+    'cba', 'cbb', 'cbc', 
+    'cca', 'ccb', 'ccc', 
+    'aaaa']
+
+Revert patch::
+    
+    >>> keys.chars = chars_origin
+    >>> keys.chars
+    'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+
+Cleanup test environment::
+  
+    >>> import shutil
+    >>> shutil.rmtree(tempdir)
