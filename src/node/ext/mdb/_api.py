@@ -28,8 +28,8 @@ from interfaces import (
 
 try:
     set
-except NameError:
-    from sets import Set as set
+except NameError:                                           #pragma NO COVERAGE
+    from sets import Set as set                             #pragma NO COVERAGE
 
 
 def tree(path, indent=0):
