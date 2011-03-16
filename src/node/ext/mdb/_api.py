@@ -343,6 +343,7 @@ class Metadata(Base):
     implements(IMetadata)
     
     # The allowed attributes for metadata.
+    # XXX: configurable
     attributes = [
         '_uid_',
         '_author_',
@@ -401,6 +402,9 @@ class Metadata(Base):
     
     def get(self, name, default=None):
         return self.data.get('_%s_' % name, default)
+    
+    def keys(self):
+        return [k.strip('_') for k in self.data.keys()]
     
     @property
     def metadatapath(self):
