@@ -3,6 +3,7 @@ import types
 from lxml import etree
 from datetime import datetime
 from plumber import plumber
+from node.locking import locktree
 from node.parts import (
     AsAttrAccess,
     NodeChildValidate,
@@ -56,6 +57,7 @@ class Base(object):
         OdictStorage,
     )
     
+    @locktree
     def __call__(self):
         for child in self.values():
             child()
@@ -78,6 +80,7 @@ class Repository(Base):
         self._todeletefiles = list()
         self._todeletedirs = list()
     
+    @locktree
     def __call__(self):
         if not os.path.exists(self.__name__):
             os.mkdir(self.__name__)
@@ -133,6 +136,7 @@ class Repository(Base):
             self[name] = media
             return Base.__getitem__(self, name)
     
+    @locktree
     def __setitem__(self, name, val):
         if not IMedia.providedBy(val):
             raise ValueError, u"Invalid child adding approach."
@@ -140,6 +144,7 @@ class Repository(Base):
             self._keys.append(name)
         Base.__setitem__(self, name, val)
     
+    @locktree
     def __delitem__(self, name):
         media = self[name]
         for key in media.keys():
@@ -207,6 +212,7 @@ class Media(Base):
     def mediapath(self):
         return [c for c in self.__name__]
     
+    @locktree
     def __call__(self):
         if self.database is None:
             raise OperationForbidden(u"Media not contained in a Database.")
@@ -246,11 +252,13 @@ class Media(Base):
             self[name] = revision
         return Base.__getitem__(self, name)
     
+    @locktree
     def __setitem__(self, name, val):
         if not IRevision.providedBy(val):
             raise ValueError, u"Invalid child adding approach."
         Base.__setitem__(self, name, val)
     
+    @locktree
     def __delitem__(self, name):
         if not name in self:
             raise KeyError(name)
@@ -275,6 +283,7 @@ class Revision(Base):
         relativerevpath = self.__parent__.mediapath + [self.__name__]
         return os.path.join(self.root.__name__, *relativerevpath)
     
+    @locktree
     def __call__(self):
         if self.database is None:
             raise OperationForbidden(u"Revision not contained in a Media.")
@@ -283,6 +292,7 @@ class Revision(Base):
         self._todelete = list()
         Base.__call__(self)
     
+    @locktree
     def __setitem__(self, name, val):
         if IMetadata.providedBy(val):
             Base.__setitem__(self, 'metadata', val)
@@ -292,6 +302,7 @@ class Revision(Base):
             return
         raise ValueError, u"Invalid child adding approach."
     
+    @locktree
     def __delitem__(self, name):
         if not name in ['binary', 'metadata']:
             raise KeyError(name)
@@ -362,6 +373,7 @@ class Metadata(Base):
         if data:
             self.data.update(data)
     
+    @locktree
     def __call__(self):
         if self.database is None:
             raise OperationForbidden(u"Metadata not contained in a Revision.")
@@ -380,6 +392,7 @@ class Metadata(Base):
             return object.__getattribute__(self, 'data').get('_%s_' % name)
         return object.__getattribute__(self, name)
     
+    @locktree
     def __delitem__(self, name):
         if '_%s_' % name in self.data:
             del self.data['_%s_' % name]
@@ -465,6 +478,7 @@ class Binary(Base):
         Base.__init__(self)
         self.payload = payload
     
+    @locktree
     def __call__(self):
         if self.database is None:
             raise OperationForbidden(u"Binary not contained in a Revision.")
@@ -473,6 +487,7 @@ class Binary(Base):
         file.write(payload)
         file.close()
     
+    @locktree
     def __delitem__(self, name):
         raise OperationForbidden(u"%s does not support this operation" % \
                                  self.__class__.__name__)
