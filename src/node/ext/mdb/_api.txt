@@ -303,8 +303,8 @@ The real filename of the binary is aimed to be stored in the metadata::
               i
                 l
                   e
-                    0.metadata
                     0.binary
+                    0.metadata
 
 Until now, we have always called the database root for dumping data. You
 can also call subobjects directly to write a specific Media, Revision, Metadata
@@ -370,6 +370,14 @@ The filsystem tree now looks like this::
 
     >>> db()
     >>> tree(db.__name__)
+    f
+      o
+        o
+          0.binary
+          0.metadata
+          o
+            0.binary
+            0.metadata
     s
       o
         m
@@ -378,18 +386,10 @@ The filsystem tree now looks like this::
               i
                 l
                   e
-                    0.metadata
-                    1.metadata
-                    1.binary
                     0.binary
-    f
-      o
-        o
-          0.metadata
-          o
-            0.metadata
-            0.binary
-          0.binary
+                    0.metadata
+                    1.binary
+                    1.metadata
 
 Check reading of an existing database. We use the alredy created one::
 
@@ -505,26 +505,24 @@ Delete a binary::
 The changes are not dumped to the filesystem yet::
 
     >>> tree(rdb.__name__)
-    s
-      ...
-                  e
-                    0.metadata
-                    1.metadata
-                    1.binary
-                    0.binary
+    f
     ...
+                  e
+                    0.binary
+                    0.metadata
+                    1.binary
+                    1.metadata 
 
 After calling the database the binary file is gone::
 
     >>> rdb()
     >>> tree(rdb.__name__)
-    s
-      ...
+    f
+    ...
                   e
                     0.metadata
-                    1.metadata
                     1.binary
-    ...
+                    1.metadata 
 
 Delete a revision::
 
@@ -535,23 +533,21 @@ Delete a revision::
 The changes are not dumped to the filesystem yet::
   
     >>> tree(rdb.__name__)
-    s
+    f
       ...
                   e
                     0.metadata
-                    1.metadata
                     1.binary
-    ...
+                    1.metadata
 
 After calling the database the revision related files are gone::
 
     >>> rdb()
     >>> tree(rdb.__name__)
-    s
-      ...
+    f
+    ...
                   e
                     0.metadata
-    ...
   
     >>> rdb['somefile'].keys()
     ['0']
@@ -563,6 +559,8 @@ Delete a Media object::
 The changes are not dumped to the filesystem yet::
 
     >>> tree(rdb.__name__)
+    f
+    ...
     s
       o
         m
@@ -572,7 +570,6 @@ The changes are not dumped to the filesystem yet::
                 l
                   e
                     0.metadata
-    ...
 
 After calling the database the media related files and directories are gone.
 Further we do more filesystem sanity checks when deleting media - I.e. the media
@@ -583,11 +580,11 @@ keys 'foo' and 'fooo' share a part of its destination, see below::
     f
       o
         o
+          0.binary
           0.metadata
           o
-            0.metadata
             0.binary
-          0.binary
+            0.metadata
 
     >>> del rdb['fooo']
     >>> rdb()
@@ -595,8 +592,8 @@ keys 'foo' and 'fooo' share a part of its destination, see below::
     f
       o
         o
-          0.metadata
           0.binary
+          0.metadata
 
     >>> rdb['fooo'] = Media()
     >>> rdb['fooo']['0'] = Revision()
@@ -607,11 +604,11 @@ keys 'foo' and 'fooo' share a part of its destination, see below::
     f
       o
         o
+          0.binary
           0.metadata
           o
-            0.metadata
             0.binary
-          0.binary
+            0.metadata
   
     >>> del rdb['foo']
     >>> rdb()
@@ -620,8 +617,8 @@ keys 'foo' and 'fooo' share a part of its destination, see below::
       o
         o
           o
-            0.metadata
             0.binary
+            0.metadata
 
 Test MediaKeys object. Provides media key generation::
 

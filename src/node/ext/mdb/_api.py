@@ -35,7 +35,7 @@ except NameError:
 def tree(path, indent=0):
     """Print the file system subtree from path below. Debug helper.
     """
-    for item in os.listdir(path):
+    for item in sorted(os.listdir(path)):
         print indent * ' ' + item
         subpath = os.path.join(path, item)
         if os.path.isdir(subpath):
