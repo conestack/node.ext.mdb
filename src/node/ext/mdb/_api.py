@@ -354,7 +354,7 @@ class Metadata(Base):
         '_mimetype_',
         '_creator_',
         '_keywords_',
-        '_url_',
+        '_suid_',
         '_relations_',
         '_title_',
         '_description_',
