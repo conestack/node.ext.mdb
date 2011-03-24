@@ -351,7 +351,7 @@ class Metadata(Base):
         '_effective_',
         '_expires_',
         '_revision_',
-        '_metatype_',
+        '_mimetype_',
         '_creator_',
         '_keywords_',
         '_url_',
