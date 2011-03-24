@@ -360,7 +360,7 @@ class Metadata(Base):
         '_description_',
         '_alttag_',
         '_body_',
-        '_flag_',
+        '_state_',
         '_relations_',
         '_keywords_',
         '_visibility_',
