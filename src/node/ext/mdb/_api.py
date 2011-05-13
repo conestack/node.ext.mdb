@@ -112,6 +112,8 @@ class Repository(Base):
     
     def _readkeys(self, path, keys):
         # should be called as infrequent as possible
+        if not os.path.exists(path):
+            return
         for item in os.listdir(path):
             if os.path.isdir(os.path.join(path, item)):
                 self._readkeys(os.path.join(path, item), keys)
@@ -427,8 +429,9 @@ class Metadata(Base):
         """Initialize metadata attributes from existing file. Ignores all
         keys already defined on self.data
         """
-        if not self.__parent__ or not os.path.exists(self.metadatapath):
-            return
+        # XXX: should not happen
+        #if not self.__parent__ or not os.path.exists(self.metadatapath):
+        #    return
         file = open(self.metadatapath, 'r')
         tree = etree.parse(file)
         file.close()
@@ -451,6 +454,8 @@ class Metadata(Base):
         file.close()
     
     def _w_value(self, val):
+        if val is None:
+            return ''
         if isinstance(val, datetime):
             return self._dt_to_iso(val)
         if not isinstance(val, unicode):
@@ -501,13 +506,13 @@ class Binary(Base):
         return '%s.%s' % (self.__parent__.revisionpath, 'binary')
     
     def initfromfile(self):
-        """Initialize self.payload from existing file if existing and not set
-        yet.
+        """Initialize self.payload from existing file.
         """
-        if not self.__parent__ \
-          or not os.path.exists(self.binarypath) \
-          or self.payload is not None:
-            return
+        # XXX: should not happen
+        #if not self.__parent__ \
+        #  or not os.path.exists(self.binarypath) \
+        #  or self.payload is not None:
+        #    return
         file = open(self.binarypath, 'rb')
         self.payload = file.read()
         file.close()

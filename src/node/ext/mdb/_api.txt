@@ -34,7 +34,7 @@ Create a test environment::
 
     >>> import os
     >>> import tempfile
-    >>> tempdir = tempfile.mkdtemp()
+    >>> tempdir = os.path.join(tempfile.mkdtemp(), 'repository')
 
 Import model referring interfaces and objects::
   
@@ -76,6 +76,13 @@ Create a media object inside the database::
     >>> db.keys()
     ['somefile']
 
+KeyError inexistent child::
+
+    >>> db['inexistent']
+    Traceback (most recent call last):
+      ...
+    KeyError: 'inexistent'
+
 The debug helper function ``tree`` prints the substructure of a given
 filesystem path::
 
@@ -84,6 +91,9 @@ filesystem path::
 The media object is not written to the filesystem yet::
 
     >>> tree(tempdir)
+    Traceback (most recent call last):
+      ...
+    OSError: [Errno 2] No such file or directory: '...'
 
 The changes made to the tree are written at ``__call__`` time::
 
@@ -124,6 +134,18 @@ Check now the filesystem structure of db::
       ...
     ValueError: Invalid child adding approach.
 
+KeyError inexistent child::
+
+    >>> media['inexistent']
+    Traceback (most recent call last):
+      ...
+    KeyError: 'inexistent'
+    
+    >>> del media['inexistent']
+    Traceback (most recent call last):
+      ...
+    KeyError: 'inexistent'
+
 Create a Revision of the media object::
 
     >>> rev = Revision('0')
@@ -139,6 +161,18 @@ as childs::
     Traceback (most recent call last):
       ...
     ValueError: Invalid child adding approach.
+
+KeyError inexistent child::
+
+    >>> rev['inexistent']
+    Traceback (most recent call last):
+      ...
+    KeyError: 'inexistent'
+    
+    >>> del rev['inexistent']
+    Traceback (most recent call last):
+      ...
+    KeyError: 'inexistent'
 
 Create a ``Metadata`` object for the revision::
 
@@ -167,6 +201,12 @@ The attributes are set via attribute assignment::
     
     >>> md.description
     'The description of somefile'
+    
+    >>> md.get('description')
+    'The description of somefile'
+    
+    >>> md.keys()
+    ['title', 'description', 'uid']
 
 Metadata attributes can be multi valued.::
 
@@ -180,11 +220,15 @@ Test underlying helper functions.::
 
     >>> from datetime import datetime
     >>> dt = datetime(2010, 1, 1, 10, 15)
-    >>> dt
-    datetime.datetime(2010, 1, 1, 10, 15)
-    
     >>> md._dt_to_iso(dt)
     '2010-01-01T10:15:00'
+    
+    >>> dt = datetime(2010, 1, 1, 10, 15, 4, 2)
+    >>> dt.isoformat()
+    '2010-01-01T10:15:04.000002'
+    
+    >>> md._dt_to_iso(dt)
+    '2010-01-01T10:15:04'
     
     >>> md._dt_from_iso('2010-01-01T10:15:00')
     datetime.datetime(2010, 1, 1, 10, 15)
@@ -423,14 +467,15 @@ Check reading of an existing database. We use the alredy created one::
 
 Add and update some metadata attributes::
 
-    >>> metadata.body = 'body'
+    >>> metadata.body = None
     >>> metadata.title = 'New Title'
+    >>> metadata.relations[0] = None
     >>> metadata.data
     {'_title_': 'New Title', 
     '_effective_': datetime.datetime(2010, 1, 1, 10, 15), 
     '_description_': u'The description of somefile', 
-    '_body_': 'body', 
-    '_relations_': [u'1', u'2', u'3'], 
+    '_body_': None, 
+    '_relations_': [None, u'2', u'3'], 
     '_uid_': u'...'}
 
 Note again, the data is not persisted unless you call the metadata object (or
@@ -454,8 +499,12 @@ one of its parents)::
 
 Deleting of metadata attributes::
 
+    >>> del metadata['inexistent']
+    Traceback (most recent call last):
+      ...
+    KeyError: u'metadata inexistent does not exist'
+    
     >>> del metadata['uid']
-    >>> metadata.body = 'body'
     >>> metadata()
     >>> file = open(metadata.metadatapath)
     >>> filecontents = file.readlines()
@@ -465,13 +514,24 @@ Deleting of metadata attributes::
     '  <title>New Title</title>\n', 
     '  <effective>2010-01-01T10:15:00</effective>\n', 
     '  <description>The description of somefile</description>\n', 
-    '  <body>body</body>\n', 
+    '  <body></body>\n', 
     '  <relations>\n', 
-    '    <item>1</item>\n', 
+    '    <item></item>\n', 
     '    <item>2</item>\n', 
     '    <item>3</item>\n', 
     '  </relations>\n', 
     '</metadata>\n']
+
+Reading of empty values in metadata::
+
+    >>> rdb = Repository(tempdir)
+    >>> media = rdb['somefile']
+    >>> revision = media['0']
+    >>> metadata = revision['metadata']
+    >>> metadata.body
+    u''
+    
+    >>> binary = revision['binary']
 
 Update the payload of a binary::
 
