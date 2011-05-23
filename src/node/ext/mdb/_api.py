@@ -368,6 +368,7 @@ class Metadata(Base):
         '_visibility_',
         '_modified_',
         '_filename_',
+        '_size_',
     ]
     
     def __init__(self, name=None, data=None):

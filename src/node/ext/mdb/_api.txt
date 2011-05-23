@@ -188,7 +188,7 @@ underscores).::
     '_revision_', '_mimetype_', '_creator_', '_keywords_', '_suid_', 
     '_relations_', '_title_', '_description_', '_alttag_', '_body_', 
     '_state_', '_relations_', '_keywords_', '_visibility_', '_modified_', 
-    '_filename_']
+    '_filename_', '_size_']
 
 The attributes are set via attribute assignment::
 
