@@ -438,8 +438,8 @@ The filsystem tree now looks like this::
 Check reading of an existing database. We use the alredy created one::
 
     >>> rdb = Repository(tempdir)
-    >>> rdb.keys()
-    ['somefile', 'foo', 'fooo']
+    >>> sorted(rdb.keys())
+    ['foo', 'fooo', 'somefile']
   
     >>> media = rdb['foo']
     >>> media.keys()
